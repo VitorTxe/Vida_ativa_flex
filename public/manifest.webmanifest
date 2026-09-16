@@ -1,0 +1,13 @@
+{
+  "name": "VIDA ATIVA - FLEX",
+  "short_name": "FLEX",
+  "description": "Treinos de corrida flexíveis com zonas de ritmo personalizadas.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101010",
+  "theme_color": "#101010",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
