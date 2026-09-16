@@ -1,33 +1,30 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
 import { matrizVdot, treinosBlocos, usuarios } from "@/db/schema";
+import { getCurrentUser } from "@/lib/app-auth";
 import { getWorkouts, VDOT_ROWS, type Goal } from "@/lib/fitness-data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
 
   const db = getDb();
   await ensureReferenceData(db);
-  let [profile] = await db.select().from(usuarios).where(eq(usuarios.idAluno, identity.userId)).limit(1);
-  if (!profile) {
-    await db.insert(usuarios).values({
-      idAluno: identity.userId,
-      nome: identity.fullName ?? identity.email.split("@")[0],
-      email: identity.email,
-      statusPagamento: "Ativo",
-      objetivo: "10k",
-      minutosTeste: 14,
-      segundosTeste: 28,
-      totalSegundos: 868,
-      dataUltimoTeste: new Date().toISOString(),
-    }).onConflictDoNothing();
-    [profile] = await db.select().from(usuarios).where(eq(usuarios.idAluno, identity.userId)).limit(1);
-  }
+  const [profile] = await db.select({
+    idAluno: usuarios.idAluno,
+    nome: usuarios.nome,
+    email: usuarios.email,
+    statusPagamento: usuarios.statusPagamento,
+    objetivo: usuarios.objetivo,
+    minutosTeste: usuarios.minutosTeste,
+    segundosTeste: usuarios.segundosTeste,
+    totalSegundos: usuarios.totalSegundos,
+    dataUltimoTeste: usuarios.dataUltimoTeste,
+  }).from(usuarios).where(eq(usuarios.idAluno, identity.idAluno)).limit(1);
+  if (!profile) return NextResponse.json({ error: "Perfil não encontrado." }, { status: 404 });
 
   const zones = profile.totalSegundos
     ? (await db.select().from(matrizVdot).where(and(
@@ -40,7 +37,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const identity = await getChatGPTUser();
+  const identity = await getCurrentUser();
   if (!identity) return NextResponse.json({ error: "Faça login para continuar." }, { status: 401 });
 
   const body = await request.json() as { objetivo?: Goal; minutosTeste?: number; segundosTeste?: number };
@@ -69,16 +66,8 @@ export async function POST(request: Request) {
 
   const db = getDb();
   await ensureReferenceData(db);
-  await db.insert(usuarios).values({
-    idAluno: identity.userId,
-    nome: identity.fullName ?? identity.email.split("@")[0],
-    email: identity.email,
-    statusPagamento: "Ativo",
-    objetivo: update.objetivo ?? "10k",
-  }).onConflictDoNothing();
-
   if (Object.keys(update).length) {
-    await db.update(usuarios).set(update).where(eq(usuarios.idAluno, identity.userId));
+    await db.update(usuarios).set(update).where(eq(usuarios.idAluno, identity.idAluno));
   }
 
   return GET();

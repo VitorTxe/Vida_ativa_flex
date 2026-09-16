@@ -4,6 +4,7 @@ export const usuarios = sqliteTable("usuarios", {
   idAluno: text("id_aluno").primaryKey(),
   nome: text("nome").notNull(),
   email: text("email").notNull(),
+  senhaHash: text("senha_hash"),
   statusPagamento: text("status_pagamento", { enum: ["Ativo", "Inativo"] }).notNull().default("Ativo"),
   objetivo: text("objetivo", { enum: ["5k", "10k", "21k", "42k"] }).notNull().default("10k"),
   minutosTeste: integer("minutos_teste"),
@@ -12,6 +13,16 @@ export const usuarios = sqliteTable("usuarios", {
   dataUltimoTeste: text("data_ultimo_teste"),
 }, (table) => [
   uniqueIndex("idx_usuarios_email").on(table.email),
+]);
+
+export const sessoes = sqliteTable("sessoes", {
+  tokenHash: text("token_hash").primaryKey(),
+  idAluno: text("id_aluno").notNull().references(() => usuarios.idAluno, { onDelete: "cascade" }),
+  criadoEm: integer("criado_em").notNull(),
+  expiraEm: integer("expira_em").notNull(),
+}, (table) => [
+  index("idx_sessoes_aluno").on(table.idAluno),
+  index("idx_sessoes_expiracao").on(table.expiraEm),
 ]);
 
 export const matrizVdot = sqliteTable("matriz_vdot", {

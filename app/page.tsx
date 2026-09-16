@@ -5,8 +5,8 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity, ArrowRight, BadgeCheck, CalendarDays, Check, ChevronRight,
   CircleHelp, Clock3, Gauge, Headphones, Home, LockKeyhole, LogOut,
-  Medal, Menu, RotateCcw, ShieldCheck, Sparkles, Target, TimerReset,
-  TrendingUp, UserRound, X,
+  LoaderCircle, Medal, Menu, RotateCcw, ShieldCheck, Sparkles, TimerReset,
+  UserPlus, UserRound, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,13 @@ import {
 } from "@/lib/fitness-data";
 
 type View = "home" | "test" | "paces" | "plan" | "profile";
+type AuthUser = {
+  idAluno: string;
+  nome: string;
+  email: string;
+  statusPagamento: "Ativo" | "Inativo";
+  objetivo: Goal | "42k";
+};
 type ModelContext = {
   registerTool: (tool: {
     name: string;
@@ -58,11 +65,32 @@ export default function VidaAtivaFlex() {
   const [completed, setCompleted] = useState<number[]>([1]);
   const [message, setMessage] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [signedIn, setSignedIn] = useState(true);
+  const [authStatus, setAuthStatus] = useState<"loading" | "anonymous" | "authenticated">("loading");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const workouts = useMemo(() => getWorkouts(goal, week), [goal, week]);
   const title = pageTitles[view];
 
   useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me")
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!active) return;
+        if (!data?.user) {
+          setAuthStatus("anonymous");
+          return;
+        }
+        setCurrentUser(data.user);
+        setAuthStatus("authenticated");
+      })
+      .catch(() => {
+        if (active) setAuthStatus("anonymous");
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
     let active = true;
     fetch("/api/profile")
       .then((response) => response.ok ? response.json() : null)
@@ -79,7 +107,7 @@ export default function VidaAtivaFlex() {
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, []);
+  }, [authStatus]);
 
   function calculate(nextMinutes = minutes, nextSeconds = seconds) {
     const normalizedSeconds = Math.max(0, Math.min(59, nextSeconds));
@@ -148,8 +176,16 @@ export default function VidaAtivaFlex() {
     return () => controller.abort();
   }, []);
 
-  if (!signedIn) {
-    return <LoginScreen goal={goal} onGoalChange={setGoal} onLogin={() => setSignedIn(true)} />;
+  if (authStatus === "loading") {
+    return <LoadingScreen />;
+  }
+
+  if (authStatus === "anonymous" || !currentUser) {
+    return <AuthScreen onAuthenticated={(user) => {
+      setCurrentUser(user);
+      if (["5k", "10k", "21k"].includes(user.objetivo)) setGoal(user.objetivo as Goal);
+      setAuthStatus("authenticated");
+    }} />;
   }
 
   return (
@@ -165,7 +201,7 @@ export default function VidaAtivaFlex() {
                 <h1 className="mt-1 truncate text-xl font-black tracking-[-0.035em] sm:text-2xl">{title.title}</h1>
               </div>
             </div>
-            <button onClick={() => setView("profile")} className="flex size-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#1E1E1E] text-sm font-bold text-[#FFD700]" aria-label="Abrir perfil">VS</button>
+            <button onClick={() => setView("profile")} className="flex size-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#1E1E1E] text-sm font-bold text-[#FFD700]" aria-label="Abrir perfil">{initials(currentUser.nome)}</button>
           </header>
 
           <div className="mt-7">
@@ -173,7 +209,12 @@ export default function VidaAtivaFlex() {
             {view === "test" && <TestView minutes={minutes} seconds={seconds} result={result} message={message} onMinutes={setMinutes} onSeconds={setSeconds} onCalculate={() => calculate()} onSeePaces={() => setView("paces")} />}
             {view === "paces" && <PacesView result={result} onRetest={() => setView("test")} />}
             {view === "plan" && <PlanView goal={goal} result={result} week={week} workouts={workouts} completed={completed} onWeek={setWeek} onToggle={toggleCompleted} />}
-            {view === "profile" && <ProfileView goal={goal} result={result} onGoal={updateGoal} onRetest={() => setView("test")} onLogout={() => setSignedIn(false)} />}
+            {view === "profile" && <ProfileView user={currentUser} goal={goal} result={result} onGoal={updateGoal} onRetest={() => setView("test")} onLogout={async () => {
+              await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+              setCurrentUser(null);
+              setAuthStatus("anonymous");
+              setView("home");
+            }} />}
           </div>
         </section>
       </div>
@@ -320,16 +361,16 @@ function PlanView({ goal, result, week, workouts, completed, onWeek, onToggle }:
   );
 }
 
-function ProfileView({ goal, result, onGoal, onRetest, onLogout }: {
-  goal: Goal; result: VdotRow; onGoal: (goal: Goal) => void; onRetest: () => void; onLogout: () => void;
+function ProfileView({ user, goal, result, onGoal, onRetest, onLogout }: {
+  user: AuthUser; goal: Goal; result: VdotRow; onGoal: (goal: Goal) => void; onRetest: () => void; onLogout: () => void | Promise<void>;
 }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
       <Card className="border-white/8 bg-[#1a1a1a] py-0 shadow-none">
         <CardContent className="p-6 sm:p-8">
-          <div className="flex items-center gap-4"><span className="grid size-16 place-items-center rounded-2xl bg-[#FFD700] text-xl font-black text-black">VS</span><div><h2 className="text-xl font-black">Vitor Silva</h2><p className="mt-1 text-sm text-white/45">vitor@vidaativa.run</p></div></div>
+          <div className="flex items-center gap-4"><span className="grid size-16 place-items-center rounded-2xl bg-[#FFD700] text-xl font-black text-black">{initials(user.nome)}</span><div><h2 className="text-xl font-black">{user.nome}</h2><p className="mt-1 text-sm text-white/45">{user.email}</p></div></div>
           <div className="my-7 h-px bg-white/8" />
-          <div className="space-y-4"><ProfileRow label="ID do aluno" value="FLEX-2048" /><ProfileRow label="Status" value="Ativo" accent /><ProfileRow label="VDOT atual" value={String(result.vdot)} /><ProfileRow label="Último teste" value="02 set 2026" /></div>
+          <div className="space-y-4"><ProfileRow label="ID do aluno" value={user.idAluno.slice(0, 8).toUpperCase()} /><ProfileRow label="Status" value={user.statusPagamento} accent /><ProfileRow label="VDOT atual" value={String(result.vdot)} /><ProfileRow label="Último teste" value="02 set 2026" /></div>
         </CardContent>
       </Card>
       <div className="space-y-5">
@@ -344,13 +385,49 @@ function ProfileView({ goal, result, onGoal, onRetest, onLogout }: {
         <Card className="border-[#FFD700]/20 bg-[#FFD700]/[0.07] py-0 shadow-none">
           <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"><div className="flex gap-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#FFD700] text-black"><BadgeCheck className="size-5" /></span><div><p className="font-black">Assinatura FLEX ativa</p><p className="mt-1 text-sm text-white/45">Próxima renovação em 02 out 2026</p></div></div><Button variant="ghost" className="justify-start text-[#FFD700] hover:bg-[#FFD700]/10 hover:text-[#FFD700]"><Headphones /> Falar com suporte</Button></CardContent>
         </Card>
-        <Button onClick={onLogout} variant="ghost" className="text-white/45 hover:bg-white/5 hover:text-white"><LogOut /> Sair da conta</Button>
+        <Button onClick={() => void onLogout()} variant="ghost" className="text-white/45 hover:bg-white/5 hover:text-white"><LogOut /> Sair da conta</Button>
       </div>
     </div>
   );
 }
 
-function LoginScreen({ goal, onGoalChange, onLogin }: { goal: Goal; onGoalChange: (goal: Goal) => void; onLogin: () => void }) {
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (user: AuthUser) => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/auth/${mode === "login" ? "login" : "register"}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(mode === "login" ? { email, senha } : { nome, email, senha }),
+      });
+      const data = await response.json() as { user?: AuthUser; error?: string };
+      if (!response.ok || !data.user) {
+        setError(data.error ?? "Não foi possível continuar.");
+        return;
+      }
+      onAuthenticated(data.user);
+    } catch {
+      setError("Não foi possível acessar o servidor. Tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function changeMode(nextMode: "login" | "register") {
+    setMode(nextMode);
+    setError("");
+    setSenha("");
+  }
+
   return (
     <main className="grid min-h-screen bg-[#101010] text-white lg:grid-cols-[1fr_1fr]">
       <section className="relative hidden overflow-hidden border-r border-white/8 p-12 lg:flex lg:flex-col">
@@ -362,20 +439,27 @@ function LoginScreen({ goal, onGoalChange, onLogin }: { goal: Goal; onGoalChange
         <Card className="w-full max-w-md border-white/8 bg-[#191919] py-0 shadow-2xl">
           <CardContent className="p-6 sm:p-8">
             <div className="lg:hidden"><Brand /></div>
-            <p className="mt-10 text-xs font-black uppercase tracking-[0.18em] text-[#FFD700] lg:mt-0">Bem-vindo à FLEX</p>
-            <h2 className="mt-3 text-3xl font-black tracking-[-0.05em]">Entre para treinar</h2>
-            <form onSubmit={(event) => { event.preventDefault(); onLogin(); }} className="mt-8 space-y-5">
-              <label className="block text-sm font-bold">E-mail<Input type="email" required defaultValue="vitor@vidaativa.run" className="mt-2 h-12 rounded-xl border-white/10 bg-black/25 px-4" /></label>
-              <label className="block text-sm font-bold">Senha<Input type="password" required defaultValue="flex2026" className="mt-2 h-12 rounded-xl border-white/10 bg-black/25 px-4" /></label>
-              <label className="block text-sm font-bold">Objetivo inicial<Select value={goal} onValueChange={(value) => onGoalChange(value as Goal)}><SelectTrigger className="mt-2 h-12 w-full rounded-xl border-white/10 bg-black/25"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="5k">Completar 5 km</SelectItem><SelectItem value="10k">Evoluir nos 10 km</SelectItem><SelectItem value="21k">Preparar meia maratona</SelectItem></SelectContent></Select></label>
-              <Button type="submit" className="h-12 w-full rounded-xl bg-[#FFD700] font-extrabold text-black hover:bg-[#ffe13d]">Entrar na FLEX <ArrowRight /></Button>
+            <p className="mt-10 text-xs font-black uppercase tracking-[0.18em] text-[#FFD700] lg:mt-0">{mode === "login" ? "Bem-vindo de volta" : "Comece na FLEX"}</p>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.05em]">{mode === "login" ? "Entre para treinar" : "Crie sua conta"}</h2>
+            <p className="mt-2 text-sm leading-6 text-white/45">{mode === "login" ? "Use seu e-mail e senha para continuar." : "Informe seus dados para acessar seu plano."}</p>
+            <form onSubmit={submit} className="mt-8 space-y-5">
+              {mode === "register" && <label className="block text-sm font-bold">Nome<Input type="text" autoComplete="name" required minLength={2} maxLength={80} value={nome} onChange={(event) => setNome(event.target.value)} placeholder="Seu nome completo" className="mt-2 h-12 rounded-xl border-white/10 bg-black/25 px-4" /></label>}
+              <label className="block text-sm font-bold">E-mail<Input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="voce@email.com" className="mt-2 h-12 rounded-xl border-white/10 bg-black/25 px-4" /></label>
+              <label className="block text-sm font-bold">Senha<Input type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} required minLength={8} maxLength={128} value={senha} onChange={(event) => setSenha(event.target.value)} placeholder="Mínimo de 8 caracteres" className="mt-2 h-12 rounded-xl border-white/10 bg-black/25 px-4" /></label>
+              {error && <p className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200" role="alert">{error}</p>}
+              <Button type="submit" disabled={submitting} className="h-12 w-full rounded-xl bg-[#FFD700] font-extrabold text-black hover:bg-[#ffe13d]">{submitting ? <><LoaderCircle className="animate-spin" /> Aguarde</> : mode === "login" ? <>Entrar na FLEX <ArrowRight /></> : <>Criar minha conta <UserPlus /></>}</Button>
             </form>
+            <button type="button" onClick={() => changeMode(mode === "login" ? "register" : "login")} className="mt-5 w-full text-center text-sm font-semibold text-white/55 transition hover:text-[#FFD700]">{mode === "login" ? "Ainda não tem conta? Cadastre-se" : "Já tem uma conta? Entrar"}</button>
             <p className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-white/35"><LockKeyhole className="size-3.5" /> Ambiente protegido e acesso individual</p>
           </CardContent>
         </Card>
       </section>
     </main>
   );
+}
+
+function LoadingScreen() {
+  return <main className="grid min-h-screen place-items-center bg-[#101010] text-white"><div className="flex flex-col items-center"><Brand /><LoaderCircle className="mt-8 size-6 animate-spin text-[#FFD700]" /><p className="mt-3 text-sm text-white/40">Verificando sua sessão</p></div></main>;
 }
 
 function Sidebar({ view, goal, onNavigate }: { view: View; goal: Goal; onNavigate: (view: View) => void }) {
@@ -424,4 +508,8 @@ function InfoPill({ icon: Icon, label, value }: { icon: LucideIcon; label: strin
 
 function ProfileRow({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return <div className="flex items-center justify-between gap-4"><span className="text-sm text-white/40">{label}</span><span className={`text-sm font-bold ${accent ? "rounded-full bg-[#FFD700]/10 px-3 py-1 text-[#FFD700]" : ""}`}>{value}</span></div>;
+}
+
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "VA";
 }
