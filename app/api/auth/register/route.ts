@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
 import { usuarios } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/app-auth";
@@ -24,21 +25,31 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  const [existing] = await db.select({ id: usuarios.idAluno }).from(usuarios).where(eq(usuarios.email, email)).limit(1);
-  if (existing) {
+  const [existing] = await db.select({ id: usuarios.idAluno, senhaHash: usuarios.senhaHash }).from(usuarios).where(eq(usuarios.email, email)).limit(1);
+  if (existing?.senhaHash) {
     return NextResponse.json({ error: "Este e-mail já está cadastrado." }, { status: 409 });
   }
 
-  const idAluno = crypto.randomUUID();
   const senhaHash = await hashPassword(senha);
-  await db.insert(usuarios).values({
-    idAluno,
-    nome,
-    email,
-    senhaHash,
-    statusPagamento: "Ativo",
-    objetivo: "10k",
-  });
+  let idAluno: string;
+  if (existing) {
+    const platformUser = await getChatGPTUser();
+    if (!platformUser || platformUser.email.trim().toLowerCase() !== email) {
+      return NextResponse.json({ error: "Este e-mail já está cadastrado." }, { status: 409 });
+    }
+    idAluno = existing.id;
+    await db.update(usuarios).set({ nome, senhaHash }).where(eq(usuarios.idAluno, idAluno));
+  } else {
+    idAluno = crypto.randomUUID();
+    await db.insert(usuarios).values({
+      idAluno,
+      nome,
+      email,
+      senhaHash,
+      statusPagamento: "Ativo",
+      objetivo: "10k",
+    });
+  }
 
   const session = await createSession(idAluno);
   const response = NextResponse.json({
