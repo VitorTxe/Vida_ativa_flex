@@ -1,6 +1,7 @@
 const ALGORITHM = "PBKDF2";
 const HASH = "SHA-256";
-const ITERATIONS = 600_000;
+// Cloudflare Workers caps a single PBKDF2 operation at 100,000 iterations.
+const ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const KEY_BYTES = 32;
 const PREFIX = "pbkdf2-sha256";
