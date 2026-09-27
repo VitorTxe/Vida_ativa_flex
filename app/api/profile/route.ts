@@ -1,8 +1,8 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getDb } from "@/db";
-import { matrizVdot, treinosBlocos, usuarios } from "@/db/schema";
-import { getCurrentUser } from "@/lib/app-auth";
+import { getDb } from "@/backend/db";
+import { matrizVdot, treinosBlocos, usuarios } from "@/backend/db/schema";
+import { getCurrentUser } from "@/backend/services/auth.service";
 import { getWorkouts, VDOT_ROWS, type Goal } from "@/lib/fitness-data";
 
 export const dynamic = "force-dynamic";

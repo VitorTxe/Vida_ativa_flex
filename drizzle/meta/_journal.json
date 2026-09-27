@@ -15,6 +15,27 @@
       "when": 1789599616898,
       "tag": "0001_lovely_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789653930813,
+      "tag": "0002_early_weapon_omega",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790000727596,
+      "tag": "0003_next_doorman",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790400000000,
+      "tag": "0004_add_user_role",
+      "breakpoints": true
     }
   ]
 }

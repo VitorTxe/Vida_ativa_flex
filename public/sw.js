@@ -1,5 +1,5 @@
-const CACHE = "vida-ativa-flex-v1";
-const CORE = ["/", "/manifest.webmanifest", "/favicon.svg"];
+const CACHE = "vida-ativa-flex-v2";
+const CORE = ["/", "/manifest.webmanifest?v=2", "/favicon.svg?v=2", "/icon-192.png?v=2", "/icon-512.png?v=2"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)));

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { destroyCurrentSession, SESSION_COOKIE } from "@/lib/app-auth";
+import { destroyCurrentSession, SESSION_COOKIE } from "@/backend/services/auth.service";
 
 export const dynamic = "force-dynamic";
 
