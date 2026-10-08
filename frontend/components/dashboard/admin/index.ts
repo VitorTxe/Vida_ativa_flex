@@ -5,3 +5,8 @@ export * from "./admin-student-chat";
 export * from "./admin-users-tab";
 export * from "./admin-user-card";
 export * from "./new-user-dialog";
+export * from "./admin-student-trainings-header";
+export * from "./admin-training-session-card";
+export * from "./admin-session-form-dialog";
+export * from "./admin-delete-session-dialog";
+export * from "./admin-completed-trainings-list";

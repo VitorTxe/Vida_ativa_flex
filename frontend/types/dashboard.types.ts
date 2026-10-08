@@ -39,3 +39,12 @@ export interface ModelContext {
 
 export type AuthStatus = "loading" | "anonymous" | "authenticated";
 export type OnboardingStatus = "idle" | "loading" | "required" | "complete" | "error";
+
+export interface UserSubscriptionInfo {
+  id: string;
+  planoNome: string;
+  status: "active" | "canceled" | "overdue" | "late" | "refunded" | "chargedback" | "trialing" | "unknown";
+  dataInicio?: string | null;
+  proximaCobranca?: string | null;
+  kiwifySubscriptionId?: string | null;
+}

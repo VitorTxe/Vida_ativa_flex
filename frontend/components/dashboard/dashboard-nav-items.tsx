@@ -12,7 +12,7 @@ export const navItems: NavItem[] = [
 ];
 
 export const pageTitles: Record<View, PageTitleMeta> = {
-  home: { eyebrow: "Visão geral", title: "Pronto para evoluir?" },
+  home: { eyebrow: "Visão geral", title: "Pronto para evoluir ?" },
   test: { eyebrow: "Central do teste", title: "Atualize seus ritmos" },
   paces: { eyebrow: "Régua metabólica", title: "Suas 7 zonas de treino" },
   plan: { eyebrow: "Ciclo atual", title: "Treine quando puder" },

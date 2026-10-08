@@ -21,10 +21,7 @@ export async function POST() {
     console.warn("Não foi possível confirmar a revogação remota do Strava; removendo dados locais.", error);
   }
 
-  await db.delete(treinosRealizados).where(and(
-    eq(treinosRealizados.idAluno, identity.idAluno),
-    eq(treinosRealizados.origem, "strava")
-  ));
+  // Mantemos os treinosRealizados intactos para preservar o histórico e os tempos concluídos pelo aluno
   await db.delete(stravaConexoes).where(eq(stravaConexoes.idAluno, identity.idAluno));
 
   return NextResponse.json({ disconnected: true, revokedRemotely });

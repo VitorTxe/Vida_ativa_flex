@@ -1,7 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/backend/db";
-import { treinosRealizados, usuarios } from "@/backend/db/schema";
+import { assinaturasKiwify, treinosRealizados, usuarios } from "@/backend/db/schema";
 import { hashPassword } from "@/backend/services/password.service";
+import { ensureKiwifyInfrastructure } from "@/backend/services/kiwify.service";
 import type { CreateUserPayload, ManagedUser, UpdateUserAccessPayload } from "@/frontend/types/admin-users.types";
 
 export class UserManagementError extends Error {
@@ -12,6 +13,7 @@ export class UserManagementError extends Error {
 }
 
 export async function listAllManagedUsers(): Promise<ManagedUser[]> {
+  await ensureKiwifyInfrastructure();
   const db = getDb();
 
   const allUsers = await db
@@ -22,8 +24,13 @@ export async function listAllManagedUsers(): Promise<ManagedUser[]> {
       role: usuarios.role,
       statusPagamento: usuarios.statusPagamento,
       objetivo: usuarios.objetivo,
+      kiwifyStatus: assinaturasKiwify.status,
+      kiwifyPlan: assinaturasKiwify.planoNome,
+      kiwifyNextPayment: assinaturasKiwify.proximaCobranca,
+      kiwifySubscriptionId: assinaturasKiwify.kiwifySubscriptionId,
     })
-    .from(usuarios);
+    .from(usuarios)
+    .leftJoin(assinaturasKiwify, eq(usuarios.idAluno, assinaturasKiwify.idAluno));
 
   // Busca contagem de treinos concluídos por usuário
   const trainingCounts = await db
@@ -47,6 +54,10 @@ export async function listAllManagedUsers(): Promise<ManagedUser[]> {
     statusPagamento: (user.statusPagamento as "Ativo" | "Inativo") || "Ativo",
     objetivo: user.objetivo,
     totalTreinosConcluidos: countMap.get(user.idAluno) ?? 0,
+    kiwifyStatus: user.kiwifyStatus || null,
+    kiwifyPlan: user.kiwifyPlan || null,
+    kiwifyNextPayment: user.kiwifyNextPayment || null,
+    kiwifySubscriptionId: user.kiwifySubscriptionId || null,
   }));
 }
 

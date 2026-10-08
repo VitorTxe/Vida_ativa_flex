@@ -18,10 +18,13 @@ import {
   RacesView,
   Sidebar,
   TestView,
+  UpgradePlanDialog,
   pageTitles,
 } from "@/frontend/components/dashboard";
 import { useDashboardState } from "@/frontend/hooks/use-dashboard-state";
 import { useNotifications } from "@/frontend/hooks/use-notifications";
+import { useFeatureAccess } from "@/frontend/hooks/use-feature-access";
+import type { View } from "@/frontend/types/dashboard.types";
 
 export default function VidaAtivaFlex(): React.JSX.Element {
   const {
@@ -39,12 +42,14 @@ export default function VidaAtivaFlex(): React.JSX.Element {
     completions,
     getCompletedSessions,
     toggleCompleted,
+    deleteCompletion,
     message,
     calculate,
     menuOpen,
     setMenuOpen,
     authStatus,
     currentUser,
+    userSubscription,
     onboardingStatus,
     initialRunningProfile,
     trainingPlan,
@@ -64,6 +69,28 @@ export default function VidaAtivaFlex(): React.JSX.Element {
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const isProfessor = currentUser?.role === "professor";
+
+  const {
+    can,
+    requestFeature,
+    dialogOpen: upgradeDialogOpen,
+    setDialogOpen: setUpgradeDialogOpen,
+    activeGate,
+  } = useFeatureAccess(userSubscription, currentUser?.role);
+
+  const handleNavigate = (targetView: View) => {
+    if (targetView === "races" && !requestFeature("canAccessRaces")) {
+      return;
+    }
+    setView(targetView);
+  };
+
+  const handleConnectStravaWithGate = () => {
+    if (!requestFeature("canSyncStrava")) {
+      return;
+    }
+    connectStrava();
+  };
 
   const {
     unreadCount,
@@ -113,7 +140,7 @@ export default function VidaAtivaFlex(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen max-w-[1540px]">
-        <Sidebar view={view} goal={goal} onNavigate={setView} />
+        <Sidebar view={view} goal={goal} onNavigate={handleNavigate} />
         <section className="min-w-0 flex-1 px-4 pb-28 pt-5 sm:px-7 lg:px-10 lg:pb-10">
           <DashboardHeader
             title={title}
@@ -122,7 +149,7 @@ export default function VidaAtivaFlex(): React.JSX.Element {
             currentView={view}
             unreadCount={unreadCount}
             onOpenMenu={() => setMenuOpen(true)}
-            onOpenProfile={setView}
+            onOpenProfile={handleNavigate}
             onOpenNotifications={() => {
               if (isProfessor) {
                 setView("admin");
@@ -150,7 +177,7 @@ export default function VidaAtivaFlex(): React.JSX.Element {
                 workouts={workouts}
                 trainingPlan={trainingPlan}
                 completed={getCompletedSessions(trainingPlan ? 1 : week)}
-                onNavigate={setView}
+                onNavigate={handleNavigate}
                 onToggle={(session) => void toggleCompleted(trainingPlan ? 1 : week, session)}
               />
             )}
@@ -178,8 +205,10 @@ export default function VidaAtivaFlex(): React.JSX.Element {
                 stravaStatus={stravaStatus}
                 onWeek={setWeek}
                 onToggle={(weekNumber, session) => void toggleCompleted(weekNumber, session)}
-                onConnectStrava={connectStrava}
+                onDeleteCompletion={(weekNumber, session) => void deleteCompletion(weekNumber, session)}
+                onConnectStrava={handleConnectStravaWithGate}
                 onStravaLinked={handleStravaLinked}
+                canScheduleCall={can("canScheduleCycleCall")}
               />
             )}
             {view === "races" && <RacesView />}
@@ -188,12 +217,13 @@ export default function VidaAtivaFlex(): React.JSX.Element {
                 user={currentUser}
                 goal={goal}
                 result={result}
+                userSubscription={userSubscription}
                 onGoal={setGoal}
                 onRetest={() => setView("test")}
                 onLogout={logout}
                 stravaStatus={stravaStatus}
                 stravaBusy={stravaBusy}
-                onConnectStrava={connectStrava}
+                onConnectStrava={handleConnectStravaWithGate}
                 onDisconnectStrava={disconnectStrava}
                 onOpenSupport={() => setNotificationsOpen(true)}
                 onOpenAdmin={isProfessor ? () => setView("admin") : undefined}
@@ -206,12 +236,12 @@ export default function VidaAtivaFlex(): React.JSX.Element {
         </section>
       </div>
 
-      <MobileNav view={view} onNavigate={setView} />
+      <MobileNav view={view} onNavigate={handleNavigate} />
       {menuOpen && (
         <MobileDrawer
           view={view}
           onNavigate={(next) => {
-            setView(next);
+            handleNavigate(next);
             setMenuOpen(false);
           }}
           onClose={() => setMenuOpen(false)}
@@ -226,6 +256,12 @@ export default function VidaAtivaFlex(): React.JSX.Element {
         sending={sendingNotification}
         error={notificationsError}
         onSendMessage={sendNotificationMessage}
+      />
+
+      <UpgradePlanDialog
+        open={upgradeDialogOpen}
+        onOpenChange={setUpgradeDialogOpen}
+        gateInfo={activeGate}
       />
     </main>
   );

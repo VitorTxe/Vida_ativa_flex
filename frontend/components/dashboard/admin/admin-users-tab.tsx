@@ -89,6 +89,33 @@ export function AdminUsersTab({ currentUserId }: AdminUsersTabProps): React.JSX.
     }
   };
 
+  const handleSyncKiwify = async (idAluno: string) => {
+    setActionLoadingId(idAluno);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/subscriptions/sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idAluno }),
+      });
+      const data = (await res.json()) as { success?: boolean; message?: string; error?: string };
+      if (!res.ok) throw new Error(data.error || "Falha ao sincronizar com Kiwify.");
+      setFeedback({ type: "success", message: data.message || "Assinatura sincronizada com a Kiwify." });
+      
+      const usersRes = await fetch("/api/admin/users");
+      if (usersRes.ok) {
+        const usersData = (await usersRes.json()) as { users: ManagedUser[] };
+        setUsers(usersData.users || []);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao sincronizar com Kiwify.";
+      console.error("[SyncKiwify Error]:", err);
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       const matchSearch =
@@ -183,6 +210,7 @@ export function AdminUsersTab({ currentUserId }: AdminUsersTabProps): React.JSX.
                 actionLoading={actionLoadingId === user.idAluno}
                 onUpdateRole={handleUpdateRole}
                 onUpdateStatus={handleUpdateStatus}
+                onSyncKiwify={handleSyncKiwify}
               />
             ))
           )}

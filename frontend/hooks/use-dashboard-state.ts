@@ -1,7 +1,8 @@
+import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { findVdot, getWorkouts, VDOT_ROWS, type Goal, type VdotRow, type Workout } from "@/frontend/lib/fitness-data";
 import type { GeneratedTrainingPlan, RunningProfile } from "@/backend/types";
-import type { AuthStatus, AuthUser, ModelContext, OnboardingStatus, View } from "@/frontend/types/dashboard.types";
+import type { AuthStatus, AuthUser, ModelContext, OnboardingStatus, UserSubscriptionInfo, View } from "@/frontend/types/dashboard.types";
 import type { StravaConnectionStatus, TrainingCompletion } from "@/frontend/types";
 
 const EMPTY_STRAVA_STATUS: StravaConnectionStatus = {
@@ -26,6 +27,7 @@ export function useDashboardState() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [userSubscription, setUserSubscription] = useState<UserSubscriptionInfo | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>("idle");
   const [initialRunningProfile, setInitialRunningProfile] = useState<RunningProfile | null>(null);
   const [trainingPlan, setTrainingPlan] = useState<GeneratedTrainingPlan | null>(null);
@@ -36,6 +38,24 @@ export function useDashboardState() {
     () => completions.filter((item) => item.week === week).map((item) => item.session),
     [completions, week]
   );
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let active = true;
+    fetch("/api/subscription")
+      .then(async (res) => (res.ok ? ((await res.json()) as { subscription?: UserSubscriptionInfo | null }) : null))
+      .then((data) => {
+        if (active && data?.subscription) {
+          setUserSubscription(data.subscription);
+        }
+      })
+      .catch((err: unknown) => {
+        console.error("Falha ao carregar assinatura:", err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [authStatus]);
 
   useEffect(() => {
     let active = true;
@@ -207,9 +227,11 @@ export function useDashboardState() {
       try {
         const response = await fetch(`/api/training-sessions?week=${weekNumber}&session=${session}`, { method: "DELETE" });
         if (!response.ok) throw new Error("completion_delete_failed");
+        toast.info("Treino desmarcado.");
       } catch (error: unknown) {
         console.error("Falha ao desmarcar treino:", error);
         setCompletions((current) => [...current.filter((item) => item.id !== existing.id), existing]);
+        toast.error("Não foi possível desmarcar o treino.");
       }
       return;
     }
@@ -241,9 +263,27 @@ export function useDashboardState() {
       const data = (await response.json().catch(() => null)) as { completion?: TrainingCompletion } | null;
       if (!response.ok || !data?.completion) throw new Error("completion_save_failed");
       setCompletions((current) => current.map((item) => item.id === optimistic.id ? data.completion! : item));
+      toast.success("Treino marcado como concluído!");
     } catch (error: unknown) {
       console.error("Falha ao concluir treino:", error);
       setCompletions((current) => current.filter((item) => item.id !== optimistic.id));
+      toast.error("Não foi possível registrar a conclusão do treino.");
+    }
+  }
+
+  async function deleteCompletion(weekNumber: number, session: number) {
+    const existing = completions.find((item) => item.week === weekNumber && item.session === session);
+    if (!existing) return;
+
+    setCompletions((current) => current.filter((item) => item.id !== existing.id));
+    try {
+      const response = await fetch(`/api/training-sessions?week=${weekNumber}&session=${session}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("completion_delete_failed");
+      toast.success("Tempo realizado excluído com sucesso.");
+    } catch (error: unknown) {
+      console.error("Falha ao excluir tempo do treino:", error);
+      setCompletions((current) => [...current.filter((item) => item.id !== existing.id), existing]);
+      toast.error("Não foi possível excluir o tempo do treino.");
     }
   }
 
@@ -252,6 +292,7 @@ export function useDashboardState() {
       ...current.filter((item) => !(item.week === completion.week && item.session === completion.session)),
       completion,
     ]);
+    toast.success("Tempo do Strava vinculado com sucesso!");
   }
 
   function connectStrava() {
@@ -264,9 +305,11 @@ export function useDashboardState() {
       const response = await fetch("/api/strava/disconnect", { method: "POST" });
       if (!response.ok) throw new Error("strava_disconnect_failed");
       setStravaStatus(EMPTY_STRAVA_STATUS);
-      setCompletions((current) => current.filter((item) => item.source !== "strava"));
+      // Mantemos o histórico de treinos e tempos gravados intacto
+      toast.success("Strava desconectado. Seus tempos e treinos continuam salvos.");
     } catch (error: unknown) {
       console.error("Falha ao desconectar Strava:", error);
+      toast.error("Não foi possível desconectar a conta do Strava.");
     } finally {
       setStravaBusy(false);
     }
@@ -360,12 +403,14 @@ export function useDashboardState() {
     completions,
     getCompletedSessions: (weekNumber: number) => completions.filter((item) => item.week === weekNumber).map((item) => item.session),
     toggleCompleted,
+    deleteCompletion,
     message,
     calculate,
     menuOpen,
     setMenuOpen,
     authStatus,
     currentUser,
+    userSubscription,
     onboardingStatus,
     initialRunningProfile,
     trainingPlan,

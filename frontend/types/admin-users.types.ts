@@ -12,6 +12,10 @@ export interface ManagedUser {
   objetivo: Goal | "42k";
   totalTreinosConcluidos: number;
   dataCriacao?: string;
+  kiwifyStatus?: string | null;
+  kiwifyPlan?: string | null;
+  kiwifyNextPayment?: string | null;
+  kiwifySubscriptionId?: string | null;
 }
 
 export interface CreateUserPayload {

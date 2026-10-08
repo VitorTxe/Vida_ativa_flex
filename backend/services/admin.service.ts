@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/backend/db";
 import {
   mensagens,
@@ -7,6 +7,8 @@ import {
   treinosRealizados,
   usuarios,
 } from "@/backend/db/schema";
+import type { GeneratedTrainingPlan, RunningProfile, TrainingSession, Weekday } from "@/backend/types";
+import { generateFallbackTrainingPlan } from "./training-plan.service";
 import { ensureMessagesInfrastructure } from "./messages.service";
 
 export interface StudentSummary {
@@ -188,6 +190,7 @@ export async function listStudentsForTeacher(): Promise<StudentSummary[]> {
 
 export async function getStudentTrainingsDetails(idAluno: string): Promise<{
   trainings: StudentTrainingDetail[];
+  plan: GeneratedTrainingPlan | null;
   planJson: string | null;
 }> {
   const db = getDb();
@@ -209,17 +212,268 @@ export async function getStudentTrainingsDetails(idAluno: string): Promise<{
     .where(eq(treinosRealizados.idAluno, idAluno))
     .orderBy(desc(treinosRealizados.concluidoEm));
 
-  const [plan] = await db
+  const [planRow] = await db
     .select({ planoJson: planosIa.planoJson })
     .from(planosIa)
     .where(eq(planosIa.idAluno, idAluno))
     .limit(1);
+
+  let parsedPlan: GeneratedTrainingPlan | null = null;
+  if (planRow?.planoJson) {
+    try {
+      parsedPlan = JSON.parse(planRow.planoJson) as GeneratedTrainingPlan;
+    } catch (err: unknown) {
+      console.error(`Erro ao decodificar planoJson para o aluno ${idAluno}:`, err);
+    }
+  }
 
   return {
     trainings: trainings.map((t) => ({
       ...t,
       origem: t.origem as "manual" | "strava",
     })),
-    planJson: plan?.planoJson ?? null,
+    plan: parsedPlan,
+    planJson: planRow?.planoJson ?? null,
   };
 }
+
+export async function updateStudentPlanSession(
+  idAluno: string,
+  weekNumber: number,
+  sessionNumber: number,
+  sessionData: Partial<TrainingSession>
+): Promise<GeneratedTrainingPlan> {
+  const db = getDb();
+  const [planRow] = await db
+    .select({ planoJson: planosIa.planoJson })
+    .from(planosIa)
+    .where(eq(planosIa.idAluno, idAluno))
+    .limit(1);
+
+  if (!planRow?.planoJson) {
+    throw new Error("Plano de treino não encontrado para este aluno.");
+  }
+
+  const plan = JSON.parse(planRow.planoJson) as GeneratedTrainingPlan;
+  const targetWeek = plan.semanas.find((s) => s.semana === weekNumber);
+  if (!targetWeek) {
+    throw new Error(`Semana ${weekNumber} não encontrada no plano.`);
+  }
+
+  const targetSessionIndex = targetWeek.sessoes.findIndex((s) => s.sessao === sessionNumber);
+  if (targetSessionIndex === -1) {
+    throw new Error(`Sessão ${sessionNumber} não encontrada na semana ${weekNumber}.`);
+  }
+
+  const existingSession = targetWeek.sessoes[targetSessionIndex];
+  targetWeek.sessoes[targetSessionIndex] = {
+    ...existingSession,
+    ...sessionData,
+    sessao: sessionNumber,
+  };
+
+  const updatedJson = JSON.stringify(plan);
+  await db
+    .update(planosIa)
+    .set({ planoJson: updatedJson })
+    .where(eq(planosIa.idAluno, idAluno));
+
+  return plan;
+}
+
+export async function addStudentPlanSession(
+  idAluno: string,
+  weekNumber: number,
+  sessionData: Omit<TrainingSession, "sessao">
+): Promise<GeneratedTrainingPlan> {
+  const db = getDb();
+  const [planRow] = await db
+    .select({ planoJson: planosIa.planoJson })
+    .from(planosIa)
+    .where(eq(planosIa.idAluno, idAluno))
+    .limit(1);
+
+  if (!planRow?.planoJson) {
+    throw new Error("Plano de treino não encontrado para este aluno.");
+  }
+
+  const plan = JSON.parse(planRow.planoJson) as GeneratedTrainingPlan;
+  const targetWeek = plan.semanas.find((s) => s.semana === weekNumber);
+  if (!targetWeek) {
+    throw new Error(`Semana ${weekNumber} não encontrada no plano.`);
+  }
+
+  const nextSessionNumber = targetWeek.sessoes.length > 0
+    ? Math.max(...targetWeek.sessoes.map((s) => s.sessao)) + 1
+    : 1;
+
+  const newSession: TrainingSession = {
+    ...sessionData,
+    sessao: nextSessionNumber,
+  };
+
+  targetWeek.sessoes.push(newSession);
+
+  const updatedJson = JSON.stringify(plan);
+  await db
+    .update(planosIa)
+    .set({ planoJson: updatedJson })
+    .where(eq(planosIa.idAluno, idAluno));
+
+  return plan;
+}
+
+export async function deleteStudentPlanSession(
+  idAluno: string,
+  weekNumber: number,
+  sessionNumber: number
+): Promise<GeneratedTrainingPlan> {
+  const db = getDb();
+  const [planRow] = await db
+    .select({ planoJson: planosIa.planoJson })
+    .from(planosIa)
+    .where(eq(planosIa.idAluno, idAluno))
+    .limit(1);
+
+  if (!planRow?.planoJson) {
+    throw new Error("Plano de treino não encontrado para este aluno.");
+  }
+
+  const plan = JSON.parse(planRow.planoJson) as GeneratedTrainingPlan;
+  const targetWeek = plan.semanas.find((s) => s.semana === weekNumber);
+  if (!targetWeek) {
+    throw new Error(`Semana ${weekNumber} não encontrada no plano.`);
+  }
+
+  const originalLength = targetWeek.sessoes.length;
+  targetWeek.sessoes = targetWeek.sessoes.filter((s) => s.sessao !== sessionNumber);
+  if (targetWeek.sessoes.length === originalLength) {
+    throw new Error(`Sessão ${sessionNumber} não encontrada na semana ${weekNumber}.`);
+  }
+
+  // Remove registro de conclusão para evitar estado órfão
+  await db
+    .delete(treinosRealizados)
+    .where(
+      and(
+        eq(treinosRealizados.idAluno, idAluno),
+        eq(treinosRealizados.semana, weekNumber),
+        eq(treinosRealizados.sessao, sessionNumber)
+      )
+    );
+
+  // Reindexa sessões da semana de 1 a N
+  targetWeek.sessoes = targetWeek.sessoes.map((s, idx) => ({
+    ...s,
+    sessao: idx + 1,
+  }));
+
+  const updatedJson = JSON.stringify(plan);
+  await db
+    .update(planosIa)
+    .set({ planoJson: updatedJson })
+    .where(eq(planosIa.idAluno, idAluno));
+
+  return plan;
+}
+
+export async function deleteStudentTrainingCompletion(
+  idAluno: string,
+  completionId: string
+): Promise<void> {
+  const db = getDb();
+  await db
+    .delete(treinosRealizados)
+    .where(
+      and(
+        eq(treinosRealizados.idAluno, idAluno),
+        eq(treinosRealizados.id, completionId)
+      )
+    );
+}
+
+export async function updateStudentPlanWeekFocus(
+  idAluno: string,
+  weekNumber: number,
+  foco: string
+): Promise<GeneratedTrainingPlan> {
+  const db = getDb();
+  const [planRow] = await db
+    .select({ planoJson: planosIa.planoJson })
+    .from(planosIa)
+    .where(eq(planosIa.idAluno, idAluno))
+    .limit(1);
+
+  if (!planRow?.planoJson) {
+    throw new Error("Plano de treino não encontrado para este aluno.");
+  }
+
+  const plan = JSON.parse(planRow.planoJson) as GeneratedTrainingPlan;
+  const targetWeek = plan.semanas.find((s) => s.semana === weekNumber);
+  if (!targetWeek) {
+    throw new Error(`Semana ${weekNumber} não encontrada no plano.`);
+  }
+
+  targetWeek.foco = foco;
+  const updatedJson = JSON.stringify(plan);
+  await db
+    .update(planosIa)
+    .set({ planoJson: updatedJson })
+    .where(eq(planosIa.idAluno, idAluno));
+
+  return plan;
+}
+
+export async function initializeStudentPlan(idAluno: string): Promise<GeneratedTrainingPlan> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ planoJson: planosIa.planoJson })
+    .from(planosIa)
+    .where(eq(planosIa.idAluno, idAluno))
+    .limit(1);
+
+  if (existing?.planoJson) {
+    try {
+      return JSON.parse(existing.planoJson) as GeneratedTrainingPlan;
+    } catch {
+      // continua para gerar se corrompido
+    }
+  }
+
+  const [profileRow] = await db
+    .select()
+    .from(perfisCorrida)
+    .where(eq(perfisCorrida.idAluno, idAluno))
+    .limit(1);
+
+  const fallbackProfile: RunningProfile = {
+    idade: profileRow?.idade ?? 30,
+    pesoKg: profileRow?.pesoKg ?? 70,
+    alturaCm: profileRow?.alturaCm ?? 170,
+    nivelExperiencia: (profileRow?.nivelExperiencia ?? "iniciante") as RunningProfile["nivelExperiencia"],
+    focoPrincipal: (profileRow?.focoPrincipal ?? "condicionamento") as RunningProfile["focoPrincipal"],
+    treinosPorSemana: ((profileRow?.treinosPorSemana ?? 3) as 2 | 3 | 4),
+    diasPreferenciais: ["ter", "qui", "sab"] as Weekday[],
+    terrenoPrincipal: (profileRow?.terrenoPrincipal ?? "rua") as RunningProfile["terrenoPrincipal"],
+    tipoTeste: "sem_teste",
+  };
+
+  const plan = generateFallbackTrainingPlan(fallbackProfile);
+  const now = new Date().toISOString();
+
+  await db.insert(planosIa).values({
+    idAluno,
+    modelo: "treinador-admin-manual",
+    planoJson: JSON.stringify(plan),
+    geradoEm: now,
+  }).onConflictDoUpdate({
+    target: planosIa.idAluno,
+    set: {
+      planoJson: JSON.stringify(plan),
+      geradoEm: now,
+    },
+  });
+
+  return plan;
+}
+

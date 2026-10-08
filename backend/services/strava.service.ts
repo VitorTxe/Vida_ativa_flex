@@ -52,7 +52,9 @@ export function getStravaClientSecret(): string {
 }
 
 export function getStravaRedirectUri(requestUrl: string): string {
-  const configured = process.env.STRAVA_REDIRECT_URI?.trim();
+  const globalEnv = (globalThis as unknown as { env?: Record<string, unknown> }).env;
+  const workerVal = globalEnv && typeof globalEnv.STRAVA_REDIRECT_URI === "string" ? (globalEnv.STRAVA_REDIRECT_URI as string).trim() : "";
+  const configured = workerVal || process.env.STRAVA_REDIRECT_URI?.trim();
   return configured || new URL("/api/strava/callback", requestUrl).toString();
 }
 
@@ -258,8 +260,11 @@ async function getEncryptionKey(): Promise<CryptoKey> {
 }
 
 function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new StravaConfigurationError(`Configure a variável ${name}.`);
+  const globalEnv = (globalThis as unknown as { env?: Record<string, unknown> }).env;
+  const workerVal = globalEnv && typeof globalEnv[name] === "string" ? (globalEnv[name] as string).trim() : "";
+  const processVal = process.env[name]?.trim() || "";
+  const value = workerVal || processVal;
+  if (!value) throw new StravaConfigurationError(`Configure a variável de ambiente ${name} no servidor/Cloudflare.`);
   return value;
 }
 

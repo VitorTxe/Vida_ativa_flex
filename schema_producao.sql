@@ -143,3 +143,32 @@ CREATE TABLE IF NOT EXISTS mensagens (
 );
 CREATE INDEX IF NOT EXISTS idx_mensagens_aluno ON mensagens(id_aluno);
 CREATE INDEX IF NOT EXISTS idx_mensagens_criado_em ON mensagens(criado_em);
+
+CREATE TABLE IF NOT EXISTS assinaturas_kiwify (
+  id TEXT PRIMARY KEY NOT NULL,
+  id_aluno TEXT NOT NULL REFERENCES usuarios(id_aluno) ON DELETE CASCADE,
+  kiwify_order_id TEXT,
+  kiwify_subscription_id TEXT,
+  kiwify_product_id TEXT,
+  kiwify_plan_id TEXT,
+  plano_nome TEXT NOT NULL DEFAULT 'Assinatura FLEX',
+  status TEXT NOT NULL DEFAULT 'active',
+  preco_centavos INTEGER,
+  data_inicio TEXT,
+  proxima_cobranca TEXT,
+  atualizado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_assinaturas_aluno ON assinaturas_kiwify(id_aluno);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assinaturas_kiwify_sub_id ON assinaturas_kiwify(kiwify_subscription_id);
+
+CREATE TABLE IF NOT EXISTS kiwify_webhook_events (
+  id TEXT PRIMARY KEY NOT NULL,
+  event_type TEXT NOT NULL,
+  order_id TEXT,
+  subscription_id TEXT,
+  processado_em TEXT NOT NULL,
+  sucesso INTEGER NOT NULL DEFAULT 1,
+  mensagem_erro TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_order ON kiwify_webhook_events(order_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_sub ON kiwify_webhook_events(subscription_id);

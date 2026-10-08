@@ -151,3 +151,54 @@ export const mensagens = sqliteTable("mensagens", {
   index("idx_mensagens_aluno").on(table.idAluno),
   index("idx_mensagens_criado_em").on(table.criadoEm),
 ]);
+
+export const assinaturasKiwify = sqliteTable("assinaturas_kiwify", {
+  id: text("id").primaryKey(),
+  idAluno: text("id_aluno").notNull().references(() => usuarios.idAluno, { onDelete: "cascade" }),
+  kiwifyOrderId: text("kiwify_order_id"),
+  kiwifySubscriptionId: text("kiwify_subscription_id"),
+  kiwifyProductId: text("kiwify_product_id"),
+  kiwifyPlanId: text("kiwify_plan_id"),
+  planoNome: text("plano_nome").notNull().default("Assinatura FLEX"),
+  status: text("status", {
+    enum: ["active", "canceled", "overdue", "late", "refunded", "chargedback", "trialing", "unknown"],
+  }).notNull().default("active"),
+  precoCentavos: integer("preco_centavos"),
+  dataInicio: text("data_inicio"),
+  proximaCobranca: text("proxima_cobranca"),
+  atualizadoEm: text("atualizado_em").notNull(),
+}, (table) => [
+  index("idx_assinaturas_aluno").on(table.idAluno),
+  uniqueIndex("idx_assinaturas_kiwify_sub_id").on(table.kiwifySubscriptionId),
+]);
+
+export const kiwifyWebhookEvents = sqliteTable("kiwify_webhook_events", {
+  id: text("id").primaryKey(),
+  eventType: text("event_type").notNull(),
+  orderId: text("order_id"),
+  subscriptionId: text("subscription_id"),
+  processadoEm: text("processado_em").notNull(),
+  sucesso: integer("sucesso", { mode: "boolean" }).notNull().default(true),
+  mensagemErro: text("mensagem_erro"),
+}, (table) => [
+  index("idx_webhook_events_order").on(table.orderId),
+  index("idx_webhook_events_sub").on(table.subscriptionId),
+]);
+
+export const tokensRecuperacaoSenha = sqliteTable("tokens_recuperacao_senha", {
+  tokenHash: text("token_hash").primaryKey(),
+  idAluno: text("id_aluno").notNull().references(() => usuarios.idAluno, { onDelete: "cascade" }),
+  expiraEm: integer("expira_em").notNull(),
+  usado: integer("usado", { mode: "boolean" }).notNull().default(false),
+  criadoEm: integer("criado_em").notNull(),
+}, (table) => [
+  index("idx_recuperacao_aluno").on(table.idAluno),
+  index("idx_recuperacao_expira").on(table.expiraEm),
+]);
+
+export type AssinaturaKiwifyRecord = typeof assinaturasKiwify.$inferSelect;
+export type NovaAssinaturaKiwify = typeof assinaturasKiwify.$inferInsert;
+export type KiwifyWebhookEventRecord = typeof kiwifyWebhookEvents.$inferSelect;
+export type NovoKiwifyWebhookEvent = typeof kiwifyWebhookEvents.$inferInsert;
+export type TokenRecuperacaoRecord = typeof tokensRecuperacaoSenha.$inferSelect;
+export type NovoTokenRecuperacao = typeof tokensRecuperacaoSenha.$inferInsert;

@@ -1,17 +1,18 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowRight, Eye, EyeOff, LoaderCircle, LockKeyhole, UserPlus } from "lucide-react";
 import { Button } from "@/frontend/components/ui/button";
 import { Card, CardContent } from "@/frontend/components/ui/card";
 import { Input } from "@/frontend/components/ui/input";
 import type { AuthUser } from "@/frontend/types/dashboard.types";
 import { Brand } from "./dashboard-nav-items";
+import { AuthForgotPasswordCard } from "./auth-forgot-password-card";
 
 interface AuthScreenProps {
   onAuthenticated: (user: AuthUser) => void;
 }
 
 export function AuthScreen({ onAuthenticated }: AuthScreenProps): React.JSX.Element {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -20,6 +21,15 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps): React.JSX.Elem
   const [showConfirmarSenha, setShowConfirmarSenha] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const urlMode = new URLSearchParams(window.location.search).get("mode");
+    if (urlMode === "register") {
+      setMode("register");
+    } else if (urlMode === "forgot") {
+      setMode("forgot");
+    }
+  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,7 +61,7 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps): React.JSX.Elem
     }
   }
 
-  function changeMode(nextMode: "login" | "register") {
+  function changeMode(nextMode: "login" | "register" | "forgot") {
     setMode(nextMode);
     setError("");
     setSenha("");
@@ -72,7 +82,11 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps): React.JSX.Elem
       <section className="flex items-center justify-center p-5 sm:p-10">
         <Card className="w-full max-w-md border-white/8 bg-[#191919] py-0 shadow-2xl">
           <CardContent className="p-6 sm:p-8">
-            <div className="lg:hidden"><Brand /></div>
+            <div className="lg:hidden mb-6"><Brand /></div>
+            {mode === "forgot" ? (
+              <AuthForgotPasswordCard onBackToLogin={() => changeMode("login")} />
+            ) : (
+              <>
             <p className="mt-10 text-xs font-black uppercase tracking-[0.18em] text-[#FFD700] lg:mt-0">{mode === "login" ? "Bem-vindo de volta" : "Comece na FLEX"}</p>
             <h2 className="mt-3 text-3xl font-black tracking-[-0.05em]">{mode === "login" ? "Entre para treinar" : "Crie sua conta"}</h2>
             <p className="mt-2 text-sm leading-6 text-white/45">{mode === "login" ? "Use seu e-mail e senha para continuar." : "Informe seus dados para acessar seu plano."}</p>
@@ -114,6 +128,18 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps): React.JSX.Elem
                 </div>
               </label>
 
+              {mode === "login" && (
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => changeMode("forgot")}
+                    className="text-xs font-semibold text-white/50 transition hover:text-[#FFD700]"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+              )}
+
               {mode === "register" && (
                 <label className="block text-sm font-bold">
                   Confirmar Senha
@@ -150,6 +176,8 @@ export function AuthScreen({ onAuthenticated }: AuthScreenProps): React.JSX.Elem
             <button type="button" onClick={() => changeMode(mode === "login" ? "register" : "login")} className="mt-5 w-full text-center text-sm font-semibold text-white/55 transition hover:text-[#FFD700]">
               {mode === "login" ? "Ainda não tem conta? Cadastre-se" : "Já tem uma conta? Entrar"}
             </button>
+            </>
+            )}
             <p className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-white/35"><LockKeyhole className="size-3.5" /> Ambiente protegido e acesso individual</p>
           </CardContent>
         </Card>

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CheckCircle2, GraduationCap, LoaderCircle, ShieldAlert, User, XCircle } from "lucide-react";
+import { CheckCircle2, GraduationCap, LoaderCircle, RefreshCw, ShieldAlert, User, XCircle } from "lucide-react";
 import type { AdminRole, AdminUserStatus, ManagedUser } from "@/frontend/types/admin-users.types";
 
 interface AdminUserCardProps {
@@ -10,6 +10,7 @@ interface AdminUserCardProps {
   actionLoading: boolean;
   onUpdateRole: (idAluno: string, newRole: AdminRole) => Promise<void>;
   onUpdateStatus: (idAluno: string, newStatus: AdminUserStatus) => Promise<void>;
+  onSyncKiwify?: (idAluno: string) => Promise<void>;
 }
 
 export function AdminUserCard({
@@ -18,9 +19,11 @@ export function AdminUserCard({
   actionLoading,
   onUpdateRole,
   onUpdateStatus,
+  onSyncKiwify,
 }: AdminUserCardProps): React.JSX.Element {
   const isProfessor = user.role === "professor";
   const isAtivo = user.statusPagamento === "Ativo";
+  const hasKiwify = Boolean(user.kiwifySubscriptionId || user.kiwifyStatus);
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition sm:flex-row sm:items-center sm:justify-between">
@@ -49,12 +52,27 @@ export function AdminUserCard({
               {isAtivo ? <CheckCircle2 className="size-2.5" /> : <XCircle className="size-2.5" />}
               {isAtivo ? "Ativo" : "Inativo"}
             </span>
+            {hasKiwify && (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                user.kiwifyStatus === "active"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
+              }`}>
+                Kiwify: {user.kiwifyStatus || "Vinculado"}
+              </span>
+            )}
           </div>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-          <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span>Alvo: <strong className="text-foreground uppercase">{user.objetivo}</strong></span>
             <span>·</span>
             <span>{user.totalTreinosConcluidos} treinos realizados</span>
+            {user.kiwifyPlan && (
+              <>
+                <span>·</span>
+                <span className="text-primary font-medium">{user.kiwifyPlan}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -89,6 +107,19 @@ export function AdminUserCard({
           {actionLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : <ShieldAlert className="size-3.5" />}
           <span>{isAtivo ? "Inativar" : "Ativar"}</span>
         </button>
+
+        {user.kiwifySubscriptionId && onSyncKiwify && (
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={() => void onSyncKiwify(user.idAluno)}
+            className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition hover:bg-primary/20 disabled:opacity-40"
+            title="Consultar status em tempo real na API Kiwify"
+          >
+            {actionLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            <span>Sincronizar Kiwify</span>
+          </button>
+        )}
       </div>
     </div>
   );

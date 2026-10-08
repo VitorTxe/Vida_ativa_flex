@@ -1,0 +1,77 @@
+import type { PricingPlan, VipCoachingPlan } from "@/frontend/types/pricing.types";
+
+export const PRICING_PLANS: PricingPlan[] = [
+  {
+    id: "monthly",
+    title: "Mensal",
+    pricePerMonth: "R$ 79,90",
+    billingPeriod: "/mês",
+    totalText: "Cobrado mensalmente. Cancele quando quiser.",
+    ctaText: "Assinar Mensal",
+    highlighted: false,
+    checkoutUrl: process.env.NEXT_PUBLIC_KIWIFY_URL_MONTHLY,
+    features: [
+      "Método FLEX: 3 sessões adaptáveis/sem",
+      "Teste de 3 km e cálculo de zonas VDOT",
+      "Autonomia total de treino",
+      "Sem fidelidade (cancele a qualquer momento)",
+    ],
+  },
+  {
+    id: "semiannual",
+    title: "Semestral",
+    badge: "25% OFF",
+    installmentPrefix: "6x de",
+    pricePerMonth: "R$ 67,45",
+    billingPeriod: "/mês",
+    totalText: "Total de R$ 404,70 no cartão ou R$ 359,50 à vista no PIX",
+    helperText: "Economize pagando à vista: R$ 359,50 (equivale a R$ 59,90/mês).",
+    ctaText: "Garantir 25% OFF",
+    highlighted: false,
+    checkoutUrl: process.env.NEXT_PUBLIC_KIWIFY_URL_SEMIANNUAL,
+    features: [
+      "Todos os recursos do Plano Mensal",
+      "Integração automática com Strava",
+      "Módulo de Provas e Recordes Pessoais",
+      "Canal de dúvidas com treinador no app",
+      "Economia de até 25% no semestre",
+    ],
+  },
+  {
+    id: "annual",
+    title: "Anual",
+    badge: "MAIS POPULAR - ECONOMIZE NO ANUAL",
+    installmentPrefix: "12x de",
+    pricePerMonth: "R$ 61,93",
+    billingPeriod: "/mês",
+    totalText: "Total de R$ 743,16 no cartão ou R$ 598,80 à vista no PIX",
+    helperText: "Economize pagando à vista: R$ 598,80 (equivale a R$ 49,90/mês).",
+    ctaText: "Quero o Plano Anual",
+    highlighted: true,
+    checkoutUrl: process.env.NEXT_PUBLIC_KIWIFY_URL_ANNUAL,
+    features: [
+      "Todos os recursos do Plano Semestral",
+      "Call 1-a-1 de avaliação a cada 4 semanas",
+      "Planilha ajustada pelo treinador",
+      "Atendimento prioritário da assessoria",
+      "Acesso completo durante 12 meses",
+    ],
+  },
+];
+
+export const VIP_COACHING_PLAN: VipCoachingPlan = {
+  id: "vip_coaching",
+  title: "Assessoria Completa",
+  badge: "VIP · ACOMPANHAMENTO 1-A-1",
+  pricePerMonth: "R$ 150,00",
+  billingPeriod: "/mês",
+  subtitle: "Treinador exclusivo analisando cada treino, periodização individualizada e suporte direto via WhatsApp.",
+  ctaText: "Quero Assessoria Completa",
+  contactUrl: process.env.NEXT_PUBLIC_COACHING_WHATSAPP_URL || "https://wa.me/5511999999999?text=Ol%C3%A1!%20Gostaria%20de%20saber%20mais%20sobre%20a%20Assessoria%20Completa%20FLEX.",
+  features: [
+    "Feedback individual pós-treino",
+    "Ajuste semanal de cargas e paces",
+    "Contato direto com o treinador no WhatsApp",
+    "Preparação para provas-alvo específicas",
+  ],
+};
